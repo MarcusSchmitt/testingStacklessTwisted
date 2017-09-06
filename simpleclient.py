@@ -6,8 +6,6 @@
 """
 An example client. Run simpleserv.py first before running this.
 """
-from __future__ import print_function
-
 from twisted.internet import reactor, protocol
 
 
@@ -42,7 +40,7 @@ class EchoFactory(protocol.ClientFactory):
 # this connects the protocol to a server running on port 8000
 def main():
     f = EchoFactory()
-    reactor.connectTCP("localhost", 8000, f)
+    reactor.connectTCP("localhost", 8001, f)
     reactor.run()
 
 # this only runs if the module was *not* imported
