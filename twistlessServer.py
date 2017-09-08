@@ -6,41 +6,49 @@ from twisted.internet import reactor, task
 from twisted.internet.protocol import Protocol, Factory
 from multiprocessing import Process, Queue, Manager
 from separateProcess import makeProcess
+from mpt2 import makeMulti
 
-def setupGlobals():
-    global reactor_tasklet, subtasklets, twistedStacklessChannel, tickerChannel, threadChannel, connectionDict, mainQue, sharedDict
-    reactor_tasklet = None
-    subtasklets = list()
-    twistedStacklessChannel = stackless.channel()
-    tickerChannel = stackless.channel()
-    threadChannel = stackless.channel()
-    connectionDict = {}
-    mainQue = Queue()
-    manager = Manager()
-    sharedDict = manager.dict()
-
+#def setupGlobals():
+    #global reactor_tasklet, subtasklets, twistedStacklessChannel, tickerChannel, threadChannel, connectionDict, mainQue, sharedDict
+    #reactor_tasklet = None
+    #tickerChannel = stackless.channel()
+    #threadChannel = stackless.channel()
+    #mainQue = Queue()
+    #manager = Manager()
+    #sharedDict = manager.dict()
+reactor_tasklet = None
 
 #twisted parts - protocoll and network related stuff
 class Tcp(Protocol):
+    def __init__(self, connectionDict, subtasklets, shutDown):
+        self.connectionDict = connectionDict
+        self.subtasklets = subtasklets
+        self.shutDown = shutDown
+
     def dataReceived(self, data):
         #deferred callback for Twisted - called whenever data is received via network protocolls
         print('data received: ', data)
-        
+
     def sendMessage(self, data):
         #function to send messages to connected clients
         self.transport.write(str(data).encode("utf-8"))
 
     def connectionMade(self):
         # Want to only transport message when I command not immediately when connected
-        connectionDict[self] = self
+        self.connectionDict[self] = self
         print("Connection Made")
-    
+
     def connectionLost(self, reason):
-        shutDown()
+        self.shutDown(self.subtasklets)
 
 class TcpFactory(Factory):
+    def __init__(self, connectionDict, subtasklets, shutDown):
+        self.connectionDict = connectionDict
+        self.subtasklets = subtasklets
+        self.shutDown = shutDown
+
     def buildProtocol(self, addr):
-        connection = Tcp()
+        connection = Tcp(self.connectionDict, self.subtasklets, self.shutDown)
         return connection
 
 
@@ -52,7 +60,7 @@ def shutDown():
             ts.kill()
 
 
-def listenToChannel():
+def listenToChannel(threadChannel, connectionDict):
     while True:
         message = threadChannel.receive()
         if message == "DONE":
@@ -63,7 +71,7 @@ def listenToChannel():
                     pass
 
 
-def reactor_run( ):
+def reactor_run(connectionDict, subtasklets):
     #import pdb; pdb.set_trace()
     global reactor_tasklet
     if reactor_tasklet is None:
@@ -72,10 +80,10 @@ def reactor_run( ):
         #repeatedly call stackless.schedule
         schedulingTask = task.LoopingCall(stackless.schedule)
         #this prevents the reactor from blocking out the other tasklets
-        factory = TcpFactory()
+        factory = TcpFactory(connectionDict, subtasklets, shutDown)
         reactor.listenTCP(8001, factory)
         print("Setup Scheduler")
-        schedulingTask.start(0.001)
+        schedulingTask.start(0.0001)
         print("Start Reactor")
         reactor.run()
 
@@ -96,13 +104,20 @@ def stacklessTicker(channel, tickTime):
 
 if __name__ == '__main__':
     print("Execute Main")
-    setupGlobals()
+    tickerChannel = stackless.channel()
+    threadChannel = stackless.channel()
+    mainQue = Queue()
+    manager = Manager()
+    sharedDict = manager.dict()
+    connectionDict = dict()
+    subtasklets = list()
+    #setupGlobals()
+    subtasklets.append(stackless.tasklet(makeProcess))
+    #subtasklets[-1]()
+    subtasklets[-1](mainQue, tickerChannel, threadChannel, sharedDict)
+    stackless.tasklet(reactor_run)(connectionDict, subtasklets)
     subtasklets.append(stackless.tasklet(listenToChannel))
-    subtasklets[-1]()
+    subtasklets[-1](threadChannel, connectionDict)
     subtasklets.append(stackless.tasklet(stacklessTicker))
     subtasklets[-1](tickerChannel, 100000)
-    subtasklets.append(stackless.tasklet(makeProcess))
-    subtasklets[-1](mainQue, tickerChannel, threadChannel, sharedDict)
-    subtasklets.append(stackless.tasklet(reactor_run))
-    subtasklets[-1]()
     stackless.run()

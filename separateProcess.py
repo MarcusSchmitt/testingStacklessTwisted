@@ -1,6 +1,7 @@
 import stackless
 from math import sin, cos, pi
 from random import random, randint
+import time
 from multiprocessing import Process, Queue, Manager
 
 mainTasklet = None
@@ -61,10 +62,18 @@ def run(que, sharedDict):
     stackless.run()
 
 
-def makeProcess(mainQue, tickerChannel, threadChannel, sharedDict):
-    solSyst = Process(target=run, args=(mainQue, sharedDict))
-    solSyst.start()
+def funcQue(tickerChannel, mainQue, threadChannel):
     while True:
         tickerChannel.receive()
         mainQue.put("UPDATE")
         threadChannel.send(mainQue.get())
+
+def makeProcess(mainQue, tickerChannel, threadChannel, sharedDict):
+    time.sleep(1)
+    #stackless.schedule()
+    solSyst = Process(target=run, args=(mainQue, sharedDict))
+    solSyst.start()
+    stackless.tasklet(funcQue)(tickerChannel, mainQue, threadChannel)
+    while True:
+        stackless.schedule()
+    solSyst.join()
