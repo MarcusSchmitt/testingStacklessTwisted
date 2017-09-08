@@ -1,17 +1,25 @@
 import stackless
 import time
+from datetime import datetime, timedelta
 import sys
 from twisted.internet import reactor, task
 from twisted.internet.protocol import Protocol, Factory
-from multiprocessing import Process, Queue
- 
-reactor_tasklet = None
-subtasklets = list()
-twistedStacklessChannel = stackless.channel()
-tickerChannel = stackless.channel()
-threadChannel = stackless.channel()
-connectionDict = {}
-mainQue = Queue()
+from multiprocessing import Process, Queue, Manager
+from separateProcess import makeProcess
+
+def setupGlobals():
+    global reactor_tasklet, subtasklets, twistedStacklessChannel, tickerChannel, threadChannel, connectionDict, mainQue, sharedDict
+    reactor_tasklet = None
+    subtasklets = list()
+    twistedStacklessChannel = stackless.channel()
+    tickerChannel = stackless.channel()
+    threadChannel = stackless.channel()
+    connectionDict = {}
+    mainQue = Queue()
+    manager = Manager()
+    sharedDict = manager.dict()
+
+
 #twisted parts - protocoll and network related stuff
 class Tcp(Protocol):
     def dataReceived(self, data):
@@ -38,7 +46,7 @@ class TcpFactory(Factory):
 
 def shutDown():
     reactor.stop()
-    mainQue.put("KILL")
+    #mainQue.put("KILL")
     for ts in subtasklets:
         if ts is not None:
             ts.kill()
@@ -46,60 +54,55 @@ def shutDown():
 
 def listenToChannel():
     while True:
-        data = threadChannel.receive()
-        for key, connection in connectionDict.items():
-            try:
-                print(data)
-                connection.sendMessage(data)
-            except AttributeError:
-                pass
+        message = threadChannel.receive()
+        if message == "DONE":
+            for key, connection in connectionDict.items():
+                try:
+                    connection.sendMessage(tickerChannel.receive())
+                except AttributeError:
+                    pass
 
-
-def makeProcess():
-    import separateProcess as sP
-    solSyst = Process(target=sP.run, args=(mainQue,))
-    solSyst.start()
-    while True:
-        tickerChannel.receive()
-        mainQue.put("UPDATE")
-        update = mainQue.get()
-        threadChannel.send(update)
-    
 
 def reactor_run( ):
-    print("Setup Reactor")
-    reactor_tasklet = stackless.getcurrent()
-    #repeatedly call stackless.schedule
-    schedulingTask = task.LoopingCall(stackless.schedule)
-    #this prevents the reactor from blocking out the other tasklets
-    factory = TcpFactory()
-    reactor.listenTCP(8001, factory)
-    print("Setup Scheduler")
-    schedulingTask.start(0.0001)
-    print("Start Reactor")
-    reactor.run()
+    #import pdb; pdb.set_trace()
+    global reactor_tasklet
+    if reactor_tasklet is None:
+        print("Setup Reactor")
+        reactor_tasklet = stackless.getcurrent()
+        #repeatedly call stackless.schedule
+        schedulingTask = task.LoopingCall(stackless.schedule)
+        #this prevents the reactor from blocking out the other tasklets
+        factory = TcpFactory()
+        reactor.listenTCP(8001, factory)
+        print("Setup Scheduler")
+        schedulingTask.start(0.001)
+        print("Start Reactor")
+        reactor.run()
 
 
 def stacklessTicker(channel, tickTime):
-    nextTime = time.clock() + tickTime
+    initTime = datetime.now()
+    tickTime = timedelta(microseconds=tickTime)
+    nextTime = initTime  + tickTime
+    lastTime = nextTime + timedelta(seconds=15)
     while (1):
-        while time.clock() < nextTime:
+        while datetime.now() < nextTime:
             stackless.schedule()
         nextTime += tickTime
-        if nextTime > 10:
+        if nextTime > lastTime:
             sys.exit()
-        print(time.clock())
-        channel.send(time.clock())
+        value = str(datetime.now()-initTime)
+        channel.send(value)
 
 if __name__ == '__main__':
-    stackless.tasklet(reactor_run)()
-    #subtasklets.append(stackless.tasklet(listenToChannel))
-    #subtasklets[-1]()
-    stackless.tasklet(listenToChannel)()
-    #subtasklets.append(stackless.tasklet(stacklessTicker))
-    #subtasklets[-1](tickerChannel, 0.1)
-    stackless.tasklet(stacklessTicker)(tickerChannel, 0.1)
-    #subtasklets.append(stackless.tasklet(makeProcess))
-    #subtasklets[-1]()
-    #stackless.tasklet(makeProcess)()
+    print("Execute Main")
+    setupGlobals()
+    subtasklets.append(stackless.tasklet(listenToChannel))
+    subtasklets[-1]()
+    subtasklets.append(stackless.tasklet(stacklessTicker))
+    subtasklets[-1](tickerChannel, 100000)
+    subtasklets.append(stackless.tasklet(makeProcess))
+    subtasklets[-1](mainQue, tickerChannel, threadChannel, sharedDict)
+    subtasklets.append(stackless.tasklet(reactor_run))
+    subtasklets[-1]()
     stackless.run()

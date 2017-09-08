@@ -1,18 +1,16 @@
 import stackless
 from math import sin, cos, pi
 from random import random, randint
-
+from multiprocessing import Process, Queue, Manager
 
 mainTasklet = None
-
-
 class SolarSystem(object):
-    def __init__(self, numOfPlanets, outsideChannel):
+    def __init__(self, numOfPlanets, outsideChannel, storageDict):
         self.planets = list()
         self.mass = 1.75 * random() + 0.75
         self.returnChannel = outsideChannel
         self.channel = stackless.channel()
-        self.storageDict = dict()
+        self.storageDict = storageDict
         for i in range(numOfPlanets):
             self.planets.append(Planet(self.mass, self.storageDict, self.channel))
         stackless.tasklet(self.listenToChannel)()
@@ -49,15 +47,24 @@ def listenToQue(que, channel):
         message = que.get()
         if message == "UPDATE":
             channel.send(True)
-            que.put(channel.receive())
+            que.put("DONE")
         elif message == "KILL":
             mainTasklet.kill()
 
 
-def run(que):
+def run(que, sharedDict):
     chan = stackless.channel()
     global mainTasklet
     mainTasklet = stackless.getcurrent()
-    solSyst = SolarSystem(randint(3, 12), chan)
+    solSyst = SolarSystem(randint(3, 12), chan, sharedDict)
     stackless.tasklet(listenToQue)(que, chan)
     stackless.run()
+
+
+def makeProcess(mainQue, tickerChannel, threadChannel, sharedDict):
+    solSyst = Process(target=run, args=(mainQue, sharedDict))
+    solSyst.start()
+    while True:
+        tickerChannel.receive()
+        mainQue.put("UPDATE")
+        threadChannel.send(mainQue.get())
