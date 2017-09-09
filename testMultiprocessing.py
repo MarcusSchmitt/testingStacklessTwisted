@@ -1,9 +1,10 @@
 import stackless
 import time
-from mpt2 import makeMulti
+from mpt2 import makeMulti, makeMulti2
 #from multiprocessing import Manager
 from twisted.internet import reactor, task
 from twisted.internet.protocol import Protocol, Factory
+from threading import Lock
 
 def third():
     print("Function Third")
@@ -57,10 +58,12 @@ def fifth():
 
 
 if __name__ == '__main__':
+    mainLock = Lock()
     stackless.tasklet(fifth)()
     stackless.tasklet(third)()
     stackless.tasklet(fourth)()
-    stackless.tasklet(makeMulti)()
+    stackless.tasklet(makeMulti)(mainLock)
+    stackless.tasklet(makeMulti2)(mainLock)
     #import pdb; pdb.set_trace()
     print(stackless.getruncount() ,stackless.getthreads())
     stackless.run()
