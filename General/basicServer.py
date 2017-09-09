@@ -68,7 +68,9 @@ class CommunicationServer(object):
     
     def respond(self):
         while True:
+            print("Init ResponseCheck Loop")
             message = self.responseChannel.receive()
+            print("Received Message On RESPONSECHANNEL")
             for key, connection in self.connectionDict.items():
                 connection.sendMessage(message)
 

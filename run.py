@@ -17,16 +17,16 @@ if __name__ == '__main__':
     responseChannel = stackless.channel()
     storage = dict()
     initialTime = date(3564, 3, 5)
-    tickTime = 100000
+    tickTime = 250000
     timeChannel = stackless.channel()
     #timeChannel = sharedDict
     #timeChannel['date'] = initialTime
-    p = StacklessProcess(target=generateSol, lock=mainLock, args=(8, timeChannel, responseChannel, storage, initialTime),
+    p = StacklessProcess(target=generateSol, lock=mainLock, args=(8, storage, initialTime),
                          listenChannel=timeChannel, responseChannel=responseChannel)
     stackless.tasklet(spawnProcess)(p)
     #stackless.tasklet(generateSol)(8, timeChannel, responseChannel, storage, initialTime)
     stackless.tasklet(stacklessTicker)(timeChannel, tickTime, initialTime)
     s = CommunicationServer(8000, responseChannel)
-    s.run()
+    stackless.tasklet(s.run)()
     stackless.tasklet(keepAlive)()
     stackless.run()

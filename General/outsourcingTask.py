@@ -5,7 +5,7 @@ from math import pi, cos, sin
 
 
 class SolarSystem(object):
-    def __init__(self, numOfPlanets, timeChannel, responseChannel, storageDict, initialTime):
+    def __init__(self, numOfPlanets, storageDict, initialTime, timeChannel, responseChannel):
         self.planets = list()
         self.mass = 1.75 * random() + 0.75
         self.timeChannel = timeChannel
@@ -36,7 +36,7 @@ class SolarSystem(object):
 
     def sendResponse(self):
         print("Update sent: ", str(datetime.now()))
-        self.responseChannel.update(self.storageDict)
+        self.responseChannel.send(self.storageDict)
 
 class Planet(object):
     def __init__(self, massOfSun, storageDict, channel):
@@ -59,25 +59,30 @@ class Planet(object):
 
 
 def generateSol(planets, timeChannel, responseChannel, storage, initialTime):
+    print("Generate Sol")
+    print(stackless.threads)
     solSyst = SolarSystem(planets, timeChannel, responseChannel, storage, initialTime)
 
 
 def stacklessTicker(channel, tickTime, startDate):
+    print("Start Ticker")
     initTime = datetime.now()
     oldDate = startDate
     daysAdd = timedelta(days=1)
     tickTime = timedelta(microseconds=tickTime)
-    nextTime = initTime  + timedelta(seconds=1)
+    nextTime = initTime  + timedelta(seconds=2)
     lastTime = nextTime + timedelta(seconds=8)
     while True:
+        #print("Init Ticker Loop")
         while datetime.now() < nextTime:
             stackless.schedule()
         nextTime += tickTime
+        #print("First Accept Loop")
         oldDate += daysAdd
         if nextTime > lastTime:
             sys.exit()
         value = str(datetime.now()-initTime)
-        print(value)
+        #print(value)
         #channel['date'] = oldDate 
         channel.send(oldDate)
 
