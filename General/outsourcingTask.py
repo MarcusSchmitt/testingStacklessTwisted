@@ -20,6 +20,7 @@ class SolarSystem(object):
 
     def listenToChannel(self):
         #lastDate = self.timeChannel['date']
+        print(self.timeChannel)
         while True:
             newDate = self.timeChannel.receive()
             #newDate = self.storageDict['date']
@@ -58,38 +59,15 @@ class Planet(object):
             print(self, "Received Update Request: ", daysPassed, " days")
 
 
-def generateSol(planets, timeChannel, responseChannel, storage, initialTime):
+def generateSol(planets, storage, initialTime, timeChannel, responseChannel):
     print("Generate Sol")
     print(stackless.threads)
-    solSyst = SolarSystem(planets, timeChannel, responseChannel, storage, initialTime)
-
-
-def stacklessTicker(channel, tickTime, startDate):
-    print("Start Ticker")
-    initTime = datetime.now()
-    oldDate = startDate
-    daysAdd = timedelta(days=1)
-    tickTime = timedelta(microseconds=tickTime)
-    nextTime = initTime  + timedelta(seconds=2)
-    lastTime = nextTime + timedelta(seconds=8)
-    while True:
-        #print("Init Ticker Loop")
-        while datetime.now() < nextTime:
-            stackless.schedule()
-        nextTime += tickTime
-        #print("First Accept Loop")
-        oldDate += daysAdd
-        if nextTime > lastTime:
-            sys.exit()
-        value = str(datetime.now()-initTime)
-        #print(value)
-        #channel['date'] = oldDate 
-        channel.send(oldDate)
+    solSyst = SolarSystem(planets, storage, initialTime, timeChannel, responseChannel)
 
 if __name__ == '__main__':
     tickerChannel = stackless.channel()
     responseChannel = stackless.channel()
     status = dict()
-    stackless.tasklet(generateSol)(15, tickerChannel, responseChannel, status, date(2535, 4, 1))
+    stackless.tasklet(generateSol)(15, status, date(2535, 4, 1), tickerChannel, responseChannel)
     stackless.tasklet(stacklessTicker)(tickerChannel, 100000, date(2535, 4, 1))
     stackless.run()
