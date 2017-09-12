@@ -1,12 +1,12 @@
 # testingStacklessTwisted
-I created this repository to play around with stackless python in combination with the Twisted library.
-Stackless Python:
-https://bitbucket.org/stackless-dev/stackless/wiki/Home
-Twisted:
-https://twistedmatrix.com/trac/
+I created this repository to play around with stackless python in combination with the Twisted library. <br />
+Stackless Python: <br />
+https://bitbucket.org/stackless-dev/stackless/wiki/Home  <br />
+Twisted: <br />
+https://twistedmatrix.com/trac/  <br />
 
-I found a basic introduction on how to make stackless play nice with twisted from Stephen Coursen:
-https://www.stevecoursen.com/209/stackless-python-meets-twisted-matrix/
+I found a basic introduction on how to make stackless play nice with twisted from Stephen Coursen:  <br />
+https://www.stevecoursen.com/209/stackless-python-meets-twisted-matrix/  <br />
 I think this is a pretty good starting point for everyone who wants to play around with stackless+twisted
 
 
